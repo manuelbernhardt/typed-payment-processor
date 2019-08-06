@@ -2,55 +2,50 @@ package io.bernhardt.typedpayment
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
+import akka.util.Timeout
 import io.bernhardt.typedpayment.Configuration.{ConfigurationMessage, MerchantId, UserId}
 import squants.market.Money
+
+import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 object PaymentHandling {
 
   def handler(configuration: ActorRef[ConfigurationMessage]): Behavior[PaymentHandlingMessage] =
     Behaviors.setup[PaymentHandlingMessage] { context =>
+      Behaviors.receiveMessage {
+        case paymentRequest: HandlePayment =>
+          // define the timeout after which the ask request has failed
+          implicit val timeout: Timeout = 1.second
 
-      // define an adapter that translates between the external protocol (the response from Configuration)
-      // and the protocol of this actor
-      val configurationResponseAdapter: ActorRef[Configuration.ConfigurationResponse] =
-        context.messageAdapter { response => WrappedConfigurationResponse(response) }
+          def buildConfigurationRequest(ref: ActorRef[Configuration.ConfigurationResponse]) =
+            Configuration.RetrieveConfiguration(paymentRequest.merchantId, ref)
 
-      def handle(requests: Map[MerchantId, HandlePayment]): Behavior[PaymentHandlingMessage] =
-        Behaviors.receiveMessage {
-          case paymentRequest: HandlePayment =>
-            configuration ! Configuration.RetrieveConfiguration(paymentRequest.merchantId, configurationResponseAdapter)
-            // note: we use merchant IDs to retrieve the request state in this example to keep things simple
-            // in reality, this isn't a working solution as there might be more requests per merchant ID that could be received
-            // in a short time-frame and thus the state would be lost before the configuration was retrieved
-            handle(requests.updated(paymentRequest.merchantId, paymentRequest))
-          case wrapped: WrappedConfigurationResponse =>
-            // handle the response from Configuration, which we understand since it was wrapped in a message that is part of
-            // the protocol of this actor
-            wrapped.response match {
-              case Configuration.ConfigurationNotFound(merchantId) =>
-                context.log.warning("Cannot handle request since no configuration was found for merchant", merchantId.id)
-                Behaviors.same
-              case Configuration.ConfigurationFound(merchantId, merchantConfiguration) =>
-                requests.get(merchantId) match {
-                  case Some(request) =>
-                  // TODO relay the request to the proper payment processor
-                    Behaviors.same
-                  case None =>
-                    context.log.warning("Could not find payment request for merchant id {}", merchantId.id)
-                    Behaviors.same
-                }
-            }
+          context.ask(configuration)(buildConfigurationRequest) {
+            case Success(response: Configuration.ConfigurationResponse) => AdaptedConfigurationResponse(response, paymentRequest)
+            case Failure(exception) => ConfigurationFailure(exception)
+          }
 
-        }
-
-      handle(requests = Map.empty)
+          Behaviors.same
+        case AdaptedConfigurationResponse(Configuration.ConfigurationNotFound(merchantId), _) =>
+          context.log.warning("Cannot handle request since no configuration was found for merchant", merchantId.id)
+          Behaviors.same
+        case AdaptedConfigurationResponse(Configuration.ConfigurationFound(merchantId, merchantConfiguration), request) =>
+          // TODO relay the request to the proper payment processor
+          Behaviors.unhandled
+        case ConfigurationFailure(exception) =>
+          context.log.warning(exception, "Could not retrieve configuration")
+          Behaviors.same
+      }
     }
 
   // ~~~ actor protocol
-
   sealed trait PaymentHandlingMessage
   case class HandlePayment(amount: Money, merchantId: MerchantId, userId: UserId) extends PaymentHandlingMessage
-  case class WrappedConfigurationResponse(response: Configuration.ConfigurationResponse) extends PaymentHandlingMessage
+
+  // ~~~ internal protocol
+  case class AdaptedConfigurationResponse(response: Configuration.ConfigurationResponse, request: HandlePayment) extends PaymentHandlingMessage
+  case class ConfigurationFailure(exception: Throwable) extends PaymentHandlingMessage
 
 
 }
