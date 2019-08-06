@@ -4,7 +4,7 @@
 		module="typed-payment-processor_2.12"
 		revision="1.0"
 		status="integration"
-		publication="20190711093615"
+		publication="20190805093646"
 	>
 		<description>
 		typed-payment-processor
@@ -35,6 +35,7 @@
 		<dependency org="com.typesafe.akka" name="akka-actor_2.12" rev="2.6.0-M4" conf="compile->default(compile)"/>
 		<dependency org="com.typesafe.akka" name="akka-actor-typed_2.12" rev="2.6.0-M4" conf="compile->default(compile)"/>
 		<dependency org="com.typesafe.akka" name="akka-testkit_2.12" rev="2.6.0-M4" conf="compile->default(compile)"/>
+		<dependency org="org.typelevel" name="squants_2.12" rev="1.4.0" conf="compile->default(compile)"/>
 		<dependency org="com.typesafe.akka" name="akka-actor-testkit-typed_2.12" rev="2.6.0-M4" conf="test->default(compile)"/>
 		<dependency org="org.scalatest" name="scalatest_2.12" rev="3.0.5" conf="test->default(compile)"/>
 	</dependencies>

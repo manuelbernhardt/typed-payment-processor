@@ -32,6 +32,7 @@ object Configuration {
   def apply(): Behavior[ConfigurationMessage] = Behaviors.setup(context => new Configuration(context))
 
   case class MerchantId(id: String) extends AnyVal
+  case class UserId(id: String) extends AnyVal
   case class BankIdentifier(id: String) extends AnyVal
 
   case class MerchantConfiguration(bankIdentifier: BankIdentifier)
