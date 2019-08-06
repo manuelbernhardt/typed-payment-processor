@@ -1,8 +1,0 @@
-[0m[[0m[0mdebug[0m] [0m[0mThe io.bernhardt.typedpayment.Configuration$ has the following regular definitions changed:[0m
-[0m[[0m[0mdebug[0m] [0m[0m	UsedName(io;bernhardt;typedpayment;Configuration;init;,[Default]).[0m
-[0m[[0m[0mdebug[0m] [0m[0mAll member reference dependencies will be considered within this context.[0m
-[0m[[0m[0mdebug[0m] [0m[0mFiles invalidated by inheriting from (external) io.bernhardt.typedpayment.Configuration$: Set(); now invalidating by inheritance (internally).[0m
-[0m[[0m[0mdebug[0m] [0m[0mGetting direct dependencies of all classes transitively invalidated by inheritance.[0m
-[0m[[0m[0mdebug[0m] [0m[0mGetting classes that directly depend on (external) io.bernhardt.typedpayment.Configuration$.[0m
-[0m[[0m[0mdebug[0m] [0m[0mNone of the modified names appears in source file of io.bernhardt.typedpayment.ConfigurationSpec. This dependency is not being considered for invalidation.[0m
-[0m[[0m[0mdebug[0m] [0m[0mNo changes[0m
