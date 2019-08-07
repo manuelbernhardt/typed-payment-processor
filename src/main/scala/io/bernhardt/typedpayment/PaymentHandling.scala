@@ -1,5 +1,6 @@
 package io.bernhardt.typedpayment
 
+import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.util.Timeout
@@ -11,9 +12,18 @@ import scala.util.{Failure, Success}
 
 object PaymentHandling {
 
-  def handler(configuration: ActorRef[ConfigurationMessage]): Behavior[PaymentHandlingMessage] =
+  def handler(configuration: ActorRef[ConfigurationMessage], paymentProcessors: Set[ServiceKey[_]]): Behavior[PaymentHandlingMessage] =
     Behaviors.setup[PaymentHandlingMessage] { context =>
+
+      // subscribe to the processor reference updates we're interested in
+      val listingAdapter: ActorRef[Receptionist.Listing] = context.messageAdapter { listing =>
+        AddProcessorReference(listing)
+      }
+      context.system.receptionist ! Receptionist.Subscribe(CreditCardProcessor.Key, listingAdapter)
+
       Behaviors.receiveMessage {
+        case AddProcessorReference(listing) =>
+          handler(configuration, paymentProcessors + listing.key)
         case paymentRequest: HandlePayment =>
           // define the timeout after which the ask request has failed
           implicit val timeout: Timeout = 1.second
@@ -46,6 +56,7 @@ object PaymentHandling {
   // ~~~ internal protocol
   case class AdaptedConfigurationResponse(response: Configuration.ConfigurationResponse, request: HandlePayment) extends PaymentHandlingMessage
   case class ConfigurationFailure(exception: Throwable) extends PaymentHandlingMessage
+  case class AddProcessorReference(listing: Receptionist.Listing) extends PaymentHandlingMessage
 
 
 }
