@@ -1,6 +1,9 @@
 package io.bernhardt.typedpayment
 
+import akka.actor.typed.{ChildFailed, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
+
+import scala.concurrent.duration._
 
 /**
   * Top-level actor of the Payment Processor implementation.
@@ -28,10 +31,26 @@ import akka.actor.typed.scaladsl.Behaviors
   */
 object PaymentProcessor {
 
-  def payment() = Behaviors.setup[Nothing] { context =>
-    context.log.info("Typed Payment Processor started")
-    context.spawn(Configuration(), "config")
-    Behaviors.empty
-  }
+  def payment() =
+    Behaviors.setup[Nothing] { context =>
+      context.log.info("Typed Payment Processor started")
+      context.spawn(Configuration(), "config")
+
+      val supervisedCreditCardProcessor = Behaviors
+        .supervise(CreditCardProcessor.process)
+        .onFailure[StorageFailedException](SupervisorStrategy.restartWithBackoff(minBackoff = 5.seconds, maxBackoff = 1.minute, randomFactor = 0.2))
+
+      val processor = context.spawn(supervisedCreditCardProcessor, "creditCardProcessor")
+
+      // watch the child actor by passing its reference
+      context.watch(processor)
+
+      Behaviors.receiveSignal[Nothing] {
+        case (_, ChildFailed(ref, cause)) =>
+          context.log.warning("The child actor {} failed because {}", ref, cause.getMessage)
+          Behaviors.same[Nothing]
+      }
+
+    }
 
 }
