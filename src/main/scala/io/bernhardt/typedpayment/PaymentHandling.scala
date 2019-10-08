@@ -32,14 +32,14 @@ object PaymentHandling {
           def buildConfigurationRequest(ref: ActorRef[Configuration.ConfigurationResponse]) =
             Configuration.RetrieveConfiguration(paymentRequest.merchantId, paymentRequest.userId, ref)
 
-          context.ask(configuration)(buildConfigurationRequest) {
+          context.ask(configuration, buildConfigurationRequest) {
             case Success(response: Configuration.ConfigurationResponse) => AdaptedConfigurationResponse(response, paymentRequest)
             case Failure(exception) => ConfigurationFailure(exception)
           }
 
           Behaviors.same
         case AdaptedConfigurationResponse(Configuration.ConfigurationNotFound(merchantId, userId), _) =>
-          context.log.warning("Cannot handle request since no configuration was found for merchant {} or user {}", merchantId.id, userId.id)
+          context.log.warn("Cannot handle request since no configuration was found for merchant %s or user %s".format(merchantId.id, userId.id))
           Behaviors.same
         case AdaptedConfigurationResponse(Configuration.ConfigurationFound(merchantId, userId, merchantConfiguration, userConfiguration), request) =>
           userConfiguration.paymentMethod match {
@@ -59,7 +59,7 @@ object PaymentHandling {
         case AdaptedConfigurationResponse(_: Configuration.MerchantConfigurationStored, _) =>
           Behaviors.same
         case ConfigurationFailure(exception) =>
-          context.log.warning(exception, "Could not retrieve configuration")
+          context.log.warn("Could not retrieve configuration", exception)
           Behaviors.same
       }
     }

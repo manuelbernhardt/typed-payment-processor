@@ -38,7 +38,7 @@ object PaymentProcessor {
 
       val supervisedCreditCardProcessor = Behaviors
         .supervise(CreditCardProcessor.process)
-        .onFailure[StorageFailedException](SupervisorStrategy.restartWithBackoff(minBackoff = 5.seconds, maxBackoff = 1.minute, randomFactor = 0.2))
+        .onFailure[RuntimeException](SupervisorStrategy.restartWithBackoff(minBackoff = 5.seconds, maxBackoff = 1.minute, randomFactor = 0.2))
 
       val processor = context.spawn(supervisedCreditCardProcessor, "creditCardProcessor")
 
@@ -47,7 +47,7 @@ object PaymentProcessor {
 
       Behaviors.receiveSignal[Nothing] {
         case (_, ChildFailed(ref, cause)) =>
-          context.log.warning("The child actor {} failed because {}", ref, cause.getMessage)
+          context.log.warn("The child actor %s failed because %s".format(ref, cause.getMessage))
           Behaviors.same[Nothing]
       }
 

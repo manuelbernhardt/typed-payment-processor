@@ -5,7 +5,7 @@ import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import io.bernhardt.typedpayment.Configuration._
 
 // the AbstractBehavior trait is the entry point for using the object-oriented style API
-class Configuration(context: ActorContext[ConfigurationMessage]) extends AbstractBehavior[ConfigurationMessage] {
+class Configuration(context: ActorContext[ConfigurationMessage]) extends AbstractBehavior[ConfigurationMessage](context) {
 
   // the mutable state here holds the configuration values of each merchant we know about
   var merchantConfigurations: Map[MerchantId, MerchantConfiguration] = Map.empty
