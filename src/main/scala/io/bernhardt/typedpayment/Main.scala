@@ -8,6 +8,6 @@ import akka.actor.typed.ActorSystem
 object Main extends App {
 
   override def main(args: Array[String]): Unit =
-    ActorSystem[Nothing](PaymentProcessor.payment(), "typed-payment-processor")
+    ActorSystem[Nothing](PaymentProcessor(), "typed-payment-processor")
 
 }

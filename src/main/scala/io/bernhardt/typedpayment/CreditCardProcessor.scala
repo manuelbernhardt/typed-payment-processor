@@ -9,7 +9,7 @@ import squants.market.Money
 
 object CreditCardProcessor {
 
-  def process: Behavior[ProcessorRequest] = Behaviors.setup { context =>
+  def apply(): Behavior[ProcessorRequest] = Behaviors.setup { context =>
     // register with the Receptionist which makes this actor discoverable
     context.system.receptionist ! Receptionist.Register(Key, context.self)
 

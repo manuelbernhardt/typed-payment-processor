@@ -13,7 +13,7 @@ import scala.util.{Failure, Success}
 
 object PaymentHandling {
 
-  def handler(configuration: ActorRef[ConfigurationMessage], paymentProcessors: Set[Listing]): Behavior[PaymentHandlingMessage] =
+  def apply(configuration: ActorRef[ConfigurationMessage], paymentProcessors: Set[Listing]): Behavior[PaymentHandlingMessage] =
     Behaviors.setup[PaymentHandlingMessage] { context =>
 
       // subscribe to the processor reference updates we're interested in
@@ -24,7 +24,7 @@ object PaymentHandling {
 
       Behaviors.receiveMessage {
         case AddProcessorReference(listing) =>
-          handler(configuration, paymentProcessors + listing)
+          apply(configuration, paymentProcessors + listing)
         case paymentRequest: HandlePayment =>
           // define the timeout after which the ask request has failed
           implicit val timeout: Timeout = 1.second

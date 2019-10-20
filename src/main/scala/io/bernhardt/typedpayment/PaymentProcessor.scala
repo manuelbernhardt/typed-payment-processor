@@ -31,13 +31,13 @@ import scala.concurrent.duration._
   */
 object PaymentProcessor {
 
-  def payment() =
+  def apply() =
     Behaviors.setup[Nothing] { context =>
       context.log.info("Typed Payment Processor started")
       context.spawn(Configuration(), "config")
 
       val supervisedCreditCardProcessor = Behaviors
-        .supervise(CreditCardProcessor.process)
+        .supervise(CreditCardProcessor.apply)
         .onFailure[RuntimeException](SupervisorStrategy.restartWithBackoff(minBackoff = 5.seconds, maxBackoff = 1.minute, randomFactor = 0.2))
 
       val processor = context.spawn(supervisedCreditCardProcessor, "creditCardProcessor")
