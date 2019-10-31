@@ -1,11 +1,12 @@
 package io.bernhardt.typedpayment
 
 import java.time.LocalDateTime
+import java.util.UUID
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.scaladsl.Behaviors
-import io.bernhardt.typedpayment.Configuration.{CreditCard, MerchantConfiguration, MerchantId, PaymentMethod, UserId}
+import io.bernhardt.typedpayment.Configuration.{CreditCard, MerchantConfiguration, MerchantId, PaymentMethod, TransactionId, UserId}
 import io.bernhardt.typedpayment.CreditCardStorage.FindCreditCardResult
 import io.bernhardt.typedpayment.Processor.{ProcessorRequest, RequestProcessed, Transaction}
 import squants.market.Money
@@ -34,10 +35,10 @@ object CreditCardProcessor {
 
       def retrievingCard(request: Processor.Process): Behavior[ProcessorRequest] = {
         Behaviors.receiveMessage {
-          case AdaptedStorageResponse(CreditCardStorage.CreditCardFound(card)) =>
-            // a real system would go talk to backend systems
-            // but we're just going to validate the request, always
-            request.sender ! RequestProcessed(Transaction(LocalDateTime.now, request.amount, request.userId, request.merchantConfiguration.merchantId))
+          case AdaptedStorageResponse(CreditCardStorage.CreditCardFound(_)) =>
+            // a real system would go talk to backend systems using the retrieved data
+            // but here, we're just going to validate the request, always
+            request.sender ! RequestProcessed(Transaction(TransactionId(UUID.randomUUID().toString), LocalDateTime.now, request.amount, request.userId, request.merchantConfiguration.merchantId))
 
             // we're able to process new requests
             stash.unstashAll(handleRequest)
@@ -45,7 +46,11 @@ object CreditCardProcessor {
             context.log.error("Could not find stored card {}", id)
             Behaviors.same
           case other =>
-            stash.stash(other)
+            if (stash.isFull) {
+              context.log.warn("Cannot handle more incoming messages, dropping them.")
+            } else {
+              stash.stash(other)
+            }
             Behaviors.same
         }
       }
@@ -69,5 +74,5 @@ object Processor {
   sealed trait ProcessorResponse
   final case class RequestProcessed(transaction: Transaction) extends ProcessorResponse
 
-  final case class Transaction(timestamp: LocalDateTime, amount: Money, userId: UserId, merchantId: MerchantId)
+  final case class Transaction(id: TransactionId, timestamp: LocalDateTime, amount: Money, userId: UserId, merchantId: MerchantId)
 }
