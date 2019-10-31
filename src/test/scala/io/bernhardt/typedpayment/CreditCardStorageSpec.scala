@@ -47,7 +47,7 @@ class CreditCardStorageSpec extends ScalaTestWithActorTestKit with WordSpecLike 
       val lookupProbe = createTestProbe[CreditCardStorage.FindCreditCardResult]()
       val storage = spawn(CreditCardStorage())
       storage ! CreditCardStorage.FindById(CreditCardId("42"), lookupProbe.ref)
-      lookupProbe.expectMessageType[CreditCardStorage.CreditCardNotFound.type]
+      lookupProbe.expectMessageType[CreditCardStorage.CreditCardNotFound]
     }
 
   }

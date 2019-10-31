@@ -48,7 +48,7 @@ object Configuration {
   sealed trait PaymentMethod
   case class CreditCard(storageId: CreditCardId) extends PaymentMethod
 
-  case class MerchantConfiguration(bankIdentifier: BankIdentifier)
+  case class MerchantConfiguration(merchantId: MerchantId, bankIdentifier: BankIdentifier)
   case class UserConfiguration(paymentMethod: PaymentMethod)
 
   sealed trait ConfigurationMessage

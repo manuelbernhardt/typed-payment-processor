@@ -27,7 +27,7 @@ object CreditCardStorage {
   final case class FindById(id: CreditCardId, replyTo: ActorRef[FindCreditCardResult]) extends Command[FindCreditCardResult]
   sealed trait FindCreditCardResult extends CommandReply
   case class CreditCardFound(card: StoredCreditCard) extends FindCreditCardResult
-  case object CreditCardNotFound extends FindCreditCardResult
+  case class CreditCardNotFound(id: CreditCardId) extends FindCreditCardResult
 
   // state definition
   final case class Storage(cards: Map[CreditCardId, StoredCreditCard] = Map.empty) {
@@ -51,7 +51,7 @@ object CreditCardStorage {
       case FindById(id, replyTo) if cards.contains(id) =>
         Effect.reply(replyTo)(CreditCardFound(cards(id)))
       case FindById(id, replyTo) if !cards.contains(id) =>
-        Effect.reply(replyTo)(CreditCardNotFound)
+        Effect.reply(replyTo)(CreditCardNotFound(id))
     }
   }
   case class StoredCreditCard(id: CreditCardId, userId: UserId, last4Digits: String)

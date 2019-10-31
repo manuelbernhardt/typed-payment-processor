@@ -29,7 +29,8 @@ class ConfigurationSpec extends ScalaTestWithActorTestKit with WordSpecLike {
       val probe = createTestProbe[ConfigurationResponse]()
       val configurationActor = spawn(Configuration())
 
-      configurationActor ! Configuration.StoreMerchantConfiguration(MerchantId("knownMerchant"), MerchantConfiguration(BankIdentifier("id")), probe.ref)
+      val merchantId = MerchantId("knownMerchant")
+      configurationActor ! Configuration.StoreMerchantConfiguration(merchantId, MerchantConfiguration(merchantId, BankIdentifier("id")), probe.ref)
       probe.expectMessageType[Configuration.MerchantConfigurationStored]
 
       configurationActor ! Configuration.StoreUserConfiguration(UserId("knownUser"), UserConfiguration(CreditCard(CreditCardId("id"))), probe.ref)

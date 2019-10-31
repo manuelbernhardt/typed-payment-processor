@@ -22,38 +22,52 @@ object PaymentHandling {
       }
       context.system.receptionist ! Receptionist.Subscribe(CreditCardProcessor.Key, listingAdapter)
 
+      val processingAdapter: ActorRef[Processor.ProcessorResponse] = context.messageAdapter { response =>
+        AdaptedProcessorResponse(response)
+      }
+
+      def handlePaymentRequest(paymentRequest: HandlePayment): Behavior[PaymentHandlingMessage] = {
+        // define the timeout after which the ask request has failed
+        implicit val timeout: Timeout = 1.second
+
+        def buildConfigurationRequest(ref: ActorRef[Configuration.ConfigurationResponse]) =
+          Configuration.RetrieveConfiguration(paymentRequest.merchantId, paymentRequest.userId, ref)
+
+        context.ask(configuration, buildConfigurationRequest) {
+          case Success(response: Configuration.ConfigurationResponse) => AdaptedConfigurationResponse(response, paymentRequest)
+          case Failure(exception) => ConfigurationFailure(exception)
+        }
+        Behaviors.same
+      }
+
+      def handleConfigurationFound(config: Configuration.ConfigurationFound, request: HandlePayment): Behavior[PaymentHandlingMessage] = {
+        config.userConfiguration.paymentMethod match {
+          case cc: CreditCard =>
+            paymentProcessors.find(_.isForKey(CreditCardProcessor.Key)) match {
+              case Some(listing) =>
+                val reference = listing.serviceInstances(CreditCardProcessor.Key).head
+                reference ! Processor.Process(request.amount, config.merchantConfiguration, config.userId, cc, processingAdapter)
+                Behaviors.same
+              case None =>
+                context.log.error("No credit card processor found")
+            }
+            Behaviors.unhandled
+        }
+      }
+
       Behaviors.receiveMessage {
         case AddProcessorReference(listing) =>
           apply(configuration, paymentProcessors + listing)
         case paymentRequest: HandlePayment =>
-          // define the timeout after which the ask request has failed
-          implicit val timeout: Timeout = 1.second
-
-          def buildConfigurationRequest(ref: ActorRef[Configuration.ConfigurationResponse]) =
-            Configuration.RetrieveConfiguration(paymentRequest.merchantId, paymentRequest.userId, ref)
-
-          context.ask(configuration, buildConfigurationRequest) {
-            case Success(response: Configuration.ConfigurationResponse) => AdaptedConfigurationResponse(response, paymentRequest)
-            case Failure(exception) => ConfigurationFailure(exception)
-          }
-
+          handlePaymentRequest(paymentRequest)
+        case AdaptedConfigurationResponse(config: Configuration.ConfigurationFound, request) =>
+          handleConfigurationFound(config, request)
+        case AdaptedProcessorResponse(Processor.RequestProcessed(transaction)) =>
+          // TODO reply to the original sender
           Behaviors.same
         case AdaptedConfigurationResponse(Configuration.ConfigurationNotFound(merchantId, userId), _) =>
           context.log.warn("Cannot handle request since no configuration was found for merchant %s or user %s".format(merchantId.id, userId.id))
           Behaviors.same
-        case AdaptedConfigurationResponse(Configuration.ConfigurationFound(merchantId, userId, merchantConfiguration, userConfiguration), request) =>
-          userConfiguration.paymentMethod match {
-            case cc: CreditCard =>
-              paymentProcessors.find(_.isForKey(CreditCardProcessor.Key)) match {
-                case Some(listing) =>
-                  val reference = listing.serviceInstances(CreditCardProcessor.Key).head
-                  reference ! Processor.Process(request.amount, merchantConfiguration, userId, cc)
-                  Behaviors.same
-                case None =>
-                  context.log.error("No credit card processor found")
-              }
-              Behaviors.unhandled
-          }
         case AdaptedConfigurationResponse(_: Configuration.UserConfigurationStored, _) =>
           Behaviors.same
         case AdaptedConfigurationResponse(_: Configuration.MerchantConfigurationStored, _) =>
@@ -69,9 +83,12 @@ object PaymentHandling {
   case class HandlePayment(amount: Money, merchantId: MerchantId, userId: UserId) extends PaymentHandlingMessage
 
   // ~~~ internal protocol
-  case class AdaptedConfigurationResponse(response: Configuration.ConfigurationResponse, request: HandlePayment) extends PaymentHandlingMessage
-  case class ConfigurationFailure(exception: Throwable) extends PaymentHandlingMessage
-  case class AddProcessorReference(listing: Receptionist.Listing) extends PaymentHandlingMessage
+  sealed trait InternalMessage extends PaymentHandlingMessage
+  case class AdaptedConfigurationResponse(response: Configuration.ConfigurationResponse, request: HandlePayment) extends InternalMessage
+  case class AdaptedProcessorResponse(response: Processor.ProcessorResponse) extends InternalMessage
+  case class ConfigurationFailure(exception: Throwable) extends InternalMessage
+  case class AddProcessorReference(listing: Receptionist.Listing) extends InternalMessage
+
 
 
 }
