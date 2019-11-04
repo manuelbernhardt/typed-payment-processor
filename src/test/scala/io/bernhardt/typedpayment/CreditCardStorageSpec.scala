@@ -3,16 +3,14 @@ package io.bernhardt.typedpayment
 import java.io.File
 
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
-import io.bernhardt.typedpayment.Configuration.{CreditCardId, UserId}
+import io.bernhardt.typedpayment.Configuration.{ CreditCardId, UserId }
 import io.bernhardt.typedpayment.CreditCardStorage.CreditCardFound
-import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
+import org.scalatest.{ BeforeAndAfterAll, WordSpecLike }
 
 import scala.reflect.io.Directory
 
 class CreditCardStorageSpec extends ScalaTestWithActorTestKit with WordSpecLike with BeforeAndAfterAll {
-
   "The Credit Card Storage" should {
-
     "Add cards" in {
       val probe = createTestProbe[CreditCardStorage.AddCreditCardResult]()
       val storage = spawn(CreditCardStorage())
@@ -49,7 +47,6 @@ class CreditCardStorageSpec extends ScalaTestWithActorTestKit with WordSpecLike 
       storage ! CreditCardStorage.FindById(CreditCardId("42"), lookupProbe.ref)
       lookupProbe.expectMessageType[CreditCardStorage.CreditCardNotFound]
     }
-
   }
 
   override protected def afterAll(): Unit = {

@@ -1,5 +1,3 @@
 package io.bernhardt.typedpayment
 
-trait CborSerializable {
-
-}
+trait CborSerializable {}

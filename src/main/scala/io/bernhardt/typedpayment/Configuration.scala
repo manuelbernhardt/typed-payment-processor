@@ -1,12 +1,12 @@
 package io.bernhardt.typedpayment
 
-import akka.actor.typed.{ActorRef, Behavior}
-import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
+import akka.actor.typed.{ ActorRef, Behavior }
+import akka.actor.typed.scaladsl.{ AbstractBehavior, ActorContext, Behaviors }
 import io.bernhardt.typedpayment.Configuration._
 
 // the AbstractBehavior trait is the entry point for using the object-oriented style API
-class Configuration(context: ActorContext[ConfigurationRequest]) extends AbstractBehavior[ConfigurationRequest](context) {
-
+class Configuration(context: ActorContext[ConfigurationRequest])
+    extends AbstractBehavior[ConfigurationRequest](context) {
   // the mutable state here holds the configuration values of each merchant we know about
   var merchantConfigurations: Map[MerchantId, MerchantConfiguration] = Map.empty
   var userConfigurations: Map[UserId, UserConfiguration] = Map.empty
@@ -37,7 +37,6 @@ class Configuration(context: ActorContext[ConfigurationRequest]) extends Abstrac
 }
 
 object Configuration {
-
   def apply(): Behavior[ConfigurationRequest] = Behaviors.setup(context => new Configuration(context))
 
   case class OrderId(id: String) extends AnyVal
@@ -54,14 +53,30 @@ object Configuration {
   case class UserConfiguration(paymentMethod: PaymentMethod)
 
   sealed trait ConfigurationRequest
-  final case class RetrieveConfiguration(merchantId: MerchantId, userId: UserId, replyTo: ActorRef[ConfigurationResponse]) extends ConfigurationRequest
-  final case class StoreMerchantConfiguration(merchantId: MerchantId, configuration: MerchantConfiguration, replyTo: ActorRef[ConfigurationResponse]) extends ConfigurationRequest
-  final case class StoreUserConfiguration(userId: UserId, configuration: UserConfiguration, replyTo: ActorRef[ConfigurationResponse]) extends ConfigurationRequest
+  final case class RetrieveConfiguration(
+      merchantId: MerchantId,
+      userId: UserId,
+      replyTo: ActorRef[ConfigurationResponse])
+      extends ConfigurationRequest
+  final case class StoreMerchantConfiguration(
+      merchantId: MerchantId,
+      configuration: MerchantConfiguration,
+      replyTo: ActorRef[ConfigurationResponse])
+      extends ConfigurationRequest
+  final case class StoreUserConfiguration(
+      userId: UserId,
+      configuration: UserConfiguration,
+      replyTo: ActorRef[ConfigurationResponse])
+      extends ConfigurationRequest
 
   sealed trait ConfigurationResponse
-  final case class ConfigurationFound(merchantId: MerchantId, userId: UserId, merchantConfiguration: MerchantConfiguration, userConfiguration: UserConfiguration) extends ConfigurationResponse
+  final case class ConfigurationFound(
+      merchantId: MerchantId,
+      userId: UserId,
+      merchantConfiguration: MerchantConfiguration,
+      userConfiguration: UserConfiguration)
+      extends ConfigurationResponse
   final case class ConfigurationNotFound(merchanId: MerchantId, userId: UserId) extends ConfigurationResponse
   final case class MerchantConfigurationStored(merchantId: MerchantId) extends ConfigurationResponse
   final case class UserConfigurationStored(userId: UserId) extends ConfigurationResponse
-
 }
