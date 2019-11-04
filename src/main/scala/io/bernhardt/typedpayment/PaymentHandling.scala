@@ -1,12 +1,10 @@
 package io.bernhardt.typedpayment
 
-import java.util.UUID
-
 import akka.actor.typed.receptionist.Receptionist.Listing
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
-import io.bernhardt.typedpayment.Configuration.{ConfigurationRequest, MerchantId, UserId}
+import io.bernhardt.typedpayment.Configuration.{ConfigurationRequest, MerchantId, OrderId, UserId}
 import squants.market.Money
 
 /**
@@ -28,15 +26,12 @@ object PaymentHandling {
           case AddProcessorReference(listing) =>
             handleRequest(paymentProcessors + listing)
           case paymentRequest: HandlePayment =>
-            // generate a unique ID for this request
-            val requestId = PaymentRequestHandler.PaymentRequestId(UUID.randomUUID().toString)
-
             // spawn one child per request
             val requestHandler = context.spawn(
-              PaymentRequestHandler(paymentRequest.sender, configuration, paymentProcessors),
-              requestId.id
+              PaymentRequestHandler(paymentRequest.orderId, paymentRequest.sender, configuration, paymentProcessors),
+              paymentRequest.orderId.id
             )
-            requestHandler ! PaymentRequestHandler.HandlePaymentRequest(requestId, paymentRequest.amount, paymentRequest.merchantId, paymentRequest.userId)
+            requestHandler ! PaymentRequestHandler.HandlePaymentRequest(paymentRequest.amount, paymentRequest.merchantId, paymentRequest.userId)
             Behaviors.same
         }
 
@@ -46,7 +41,7 @@ object PaymentHandling {
 
   // ~~~ public protocol
   sealed trait Command
-  case class HandlePayment(amount: Money, merchantId: MerchantId, userId: UserId, sender: ActorRef[PaymentRequestHandler.Response]) extends Command
+  case class HandlePayment(orderId: OrderId, amount: Money, merchantId: MerchantId, userId: UserId, sender: ActorRef[PaymentRequestHandler.Response]) extends Command
 
   // ~~~ internal protocol
   sealed trait InternalMessage extends Command

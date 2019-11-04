@@ -40,6 +40,7 @@ object Configuration {
 
   def apply(): Behavior[ConfigurationRequest] = Behaviors.setup(context => new Configuration(context))
 
+  case class OrderId(id: String) extends AnyVal
   case class MerchantId(id: String) extends AnyVal
   case class UserId(id: String) extends AnyVal
   case class BankIdentifier(id: String) extends AnyVal
