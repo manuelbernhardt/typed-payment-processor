@@ -14,68 +14,62 @@ import squants.market.Money
 object PaymentRequestHandler {
   def apply(
       orderId: OrderId,
-      client: ActorRef[Response],
       configuration: ActorRef[Configuration.ConfigurationRequest],
-      paymentProcessors: Set[Listing]): Behavior[Command] = Behaviors.setup { context =>
+      processors: Listing): Behavior[Command] = Behaviors.setup { context =>
     val configurationAdapter: ActorRef[Configuration.ConfigurationResponse] = context.messageAdapter { response =>
-      AdaptedConfigurationResponse(response)
+      AdaptedConfigurationResponse(orderId, response)
     }
     val processingAdapter: ActorRef[Processor.ProcessorResponse] = context.messageAdapter { response =>
-      AdaptedProcessorResponse(response)
+      AdaptedProcessorResponse(orderId, response)
     }
 
     def commandHandler(state: State, command: Command): Effect[Event, State] = state match {
       case Empty =>
         command match {
-          case HandlePaymentRequest(amount, merchantId, userId) =>
-            Effect.persist(PaymentRequestReceived(orderId, amount, merchantId, userId)).thenRun { _ =>
+          case HandlePaymentRequest(client, orderId, amount, merchantId, userId) =>
+            Effect.persist(PaymentRequestReceived(client, orderId, amount, merchantId, userId)).thenRun { _ =>
               // bootstrap request handling by fetching the configuration
               configuration ! Configuration.RetrieveConfiguration(merchantId, userId, configurationAdapter)
             }
-          case _ => Effect.unhandled
+          case GracefulStop => Effect.stop[Event, State]
+          case _            => Effect.unhandled
         }
 
       case processing: ProcessingPayment =>
         command match {
-          case AdaptedConfigurationResponse(config: Configuration.ConfigurationFound) =>
+          case AdaptedConfigurationResponse(_, config: Configuration.ConfigurationFound) =>
             processRequest(config, processing.amount)
-          case AdaptedConfigurationResponse(Configuration.ConfigurationNotFound(merchantId, userId)) =>
+          case AdaptedConfigurationResponse(_, Configuration.ConfigurationNotFound(merchantId, userId)) =>
             Effect
               .none[Event, State]
               .thenRun { _ =>
                 context.log.warn("Cannot handle request since no configuration was found for merchant %s or user %s"
                   .format(merchantId.id, userId.id))
-                client ! PaymentRejected("Configuration not found")
+                processing.client ! PaymentRejected("Configuration not found")
               }
               .thenStop
-          case ConfigurationFailure(exception) =>
-            Effect
-              .none[Event, State]
-              .thenRun { _ =>
-                context.log.warn("Could not retrieve configuration", exception)
-                client ! PaymentRejected("Configuration failed")
-              }
-              .thenStop()
-          case AdaptedConfigurationResponse(_) =>
+          case AdaptedConfigurationResponse(_, _) =>
             Effect.unhandled
+          case GracefulStop => Effect.stop[Event, State]
           case _ =>
             Effect.unhandled
         }
 
       case processed: PaymentProcessed =>
         command match {
-          case AdaptedProcessorResponse(Processor.RequestProcessed(transaction)) =>
+          case AdaptedProcessorResponse(_, Processor.RequestProcessed(transaction)) =>
             Effect
               .persist[Event, State](PaymentRequestProcessed(transaction.id))
               .thenRun { _ =>
-                client ! PaymentAccepted(transaction.id)
+                processed.client ! PaymentAccepted(transaction.id)
               }
               .thenStop()
-          case _: HandlePaymentRequest =>
+          case request: HandlePaymentRequest =>
             context.log.info("Repeated payment request for order {}", orderId)
             Effect.none.thenRun { _ =>
-              client ! PaymentAccepted(processed.transactionId)
+              request.client ! PaymentAccepted(processed.transactionId)
             }
+          case GracefulStop => Effect.stop[Event, State]
           case _ =>
             Effect.unhandled
         }
@@ -84,14 +78,14 @@ object PaymentRequestHandler {
     def eventHandler(state: State, event: Event): State = state match {
       case Empty =>
         event match {
-          case PaymentRequestReceived(orderId, amount, merchantId, userId) =>
-            ProcessingPayment(orderId, amount, merchantId, userId)
+          case PaymentRequestReceived(client, orderId, amount, merchantId, userId) =>
+            ProcessingPayment(client, orderId, amount, merchantId, userId)
           case _ => Empty
         }
       case state: ProcessingPayment =>
         event match {
           case PaymentRequestProcessed(transactionId) =>
-            PaymentProcessed(transactionId, state.orderId, state.amount, state.merchantId, state.userId)
+            PaymentProcessed(state.client, transactionId, state.orderId, state.amount, state.merchantId, state.userId)
           case _ => state
         }
       case processed: PaymentProcessed => processed
@@ -100,16 +94,16 @@ object PaymentRequestHandler {
     def processRequest(config: Configuration.ConfigurationFound, amount: Money): Effect[Event, State] = {
       config.userConfiguration.paymentMethod match {
         case cc: CreditCard =>
-          paymentProcessors.find(_.isForKey(CreditCardProcessor.Key)) match {
-            case Some(listing) =>
-              val reference = listing.serviceInstances(CreditCardProcessor.Key).head
-              Effect.none.thenRun { _ =>
-                reference ! Processor
-                  .Process(amount, config.merchantConfiguration, config.userId, cc, processingAdapter)
-              }
-            case None =>
-              context.log.error("No credit card processor available")
-              Effect.stop()
+          val references = processors.serviceInstances(CreditCardProcessor.Key)
+          if (references.nonEmpty) {
+            val reference = references.head
+
+            Effect.none.thenRun { _ =>
+              reference ! Processor.Process(amount, config.merchantConfiguration, config.userId, cc, processingAdapter)
+            }
+          } else {
+            context.log.error("No credit card processor available")
+            Effect.stop()
           }
       }
     }
@@ -118,19 +112,49 @@ object PaymentRequestHandler {
   }
 
   // public protocol
-  sealed trait Command
-  final case class HandlePaymentRequest(amount: Money, merchantId: MerchantId, userId: UserId) extends Command
+  sealed trait Command {
+    def orderId: OrderId
+  }
+
+  final case class HandlePaymentRequest(
+      client: ActorRef[Response],
+      orderId: OrderId,
+      amount: Money,
+      merchantId: MerchantId,
+      userId: UserId)
+      extends Command
+
+  final case object GracefulStop extends Command {
+    // this message is intended to be sent directly from the parent shard, hence the orderId is irrelevant
+    override def orderId: OrderId = OrderId("")
+  }
 
   sealed trait Event
-  final case class PaymentRequestReceived(orderId: OrderId, amount: Money, merchantId: MerchantId, userId: UserId)
+
+  final case class PaymentRequestReceived(
+      client: ActorRef[Response],
+      orderId: OrderId,
+      amount: Money,
+      merchantId: MerchantId,
+      userId: UserId)
       extends Event
+
   final case class PaymentRequestProcessed(transactionId: TransactionId) extends Event
 
   sealed trait State
+
   final case object Empty extends State
-  final case class ProcessingPayment(orderId: OrderId, amount: Money, merchantId: MerchantId, userId: UserId)
+
+  final case class ProcessingPayment(
+      client: ActorRef[Response],
+      orderId: OrderId,
+      amount: Money,
+      merchantId: MerchantId,
+      userId: UserId)
       extends State
+
   final case class PaymentProcessed(
+      client: ActorRef[Response],
       transactionId: TransactionId,
       orderId: OrderId,
       amount: Money,
@@ -139,13 +163,17 @@ object PaymentRequestHandler {
       extends State
 
   sealed trait Response
+
   final case class PaymentAccepted(transactionId: TransactionId) extends Response
+
   final case class PaymentRejected(reason: String) extends Response
 
   // internal protocol
   sealed trait InternalMessage extends Command
-  private final case class AdaptedConfigurationResponse(response: Configuration.ConfigurationResponse)
+
+  private final case class AdaptedConfigurationResponse(orderId: OrderId, response: Configuration.ConfigurationResponse)
       extends InternalMessage
-  private final case class AdaptedProcessorResponse(response: Processor.ProcessorResponse) extends InternalMessage
-  private final case class ConfigurationFailure(exception: Throwable) extends InternalMessage
+
+  private final case class AdaptedProcessorResponse(orderId: OrderId, response: Processor.ProcessorResponse)
+      extends InternalMessage
 }
