@@ -26,8 +26,8 @@ object PaymentRequestHandler {
     def commandHandler(state: State, command: Command): Effect[Event, State] = state match {
       case Empty =>
         command match {
-          case HandlePaymentRequest(client, orderId, amount, merchantId, userId) =>
-            Effect.persist(PaymentRequestReceived(client, orderId, amount, merchantId, userId)).thenRun { _ =>
+          case HandlePaymentRequest(orderId, amount, merchantId, userId, replyTo) =>
+            Effect.persist(PaymentRequestReceived(orderId, amount, merchantId, userId, replyTo)).thenRun { _ =>
               // bootstrap request handling by fetching the configuration
               configuration ! Configuration.RetrieveConfiguration(merchantId, userId, configurationAdapter)
             }
@@ -67,7 +67,7 @@ object PaymentRequestHandler {
           case request: HandlePaymentRequest =>
             context.log.info("Repeated payment request for order {}", orderId)
             Effect.none.thenRun { _ =>
-              request.client ! PaymentAccepted(processed.transactionId)
+              request.replyTo ! PaymentAccepted(processed.transactionId)
             }
           case GracefulStop => Effect.stop[Event, State]
           case _ =>
@@ -78,8 +78,8 @@ object PaymentRequestHandler {
     def eventHandler(state: State, event: Event): State = state match {
       case Empty =>
         event match {
-          case PaymentRequestReceived(client, orderId, amount, merchantId, userId) =>
-            ProcessingPayment(client, orderId, amount, merchantId, userId)
+          case PaymentRequestReceived(orderId, amount, merchantId, userId, replyTo) =>
+            ProcessingPayment(replyTo, orderId, amount, merchantId, userId)
           case _ => Empty
         }
       case state: ProcessingPayment =>
@@ -117,11 +117,11 @@ object PaymentRequestHandler {
   }
 
   final case class HandlePaymentRequest(
-      client: ActorRef[Response],
       orderId: OrderId,
       amount: Money,
       merchantId: MerchantId,
-      userId: UserId)
+      userId: UserId,
+      replyTo: ActorRef[Response])
       extends Command
 
   final case object GracefulStop extends Command {
@@ -132,11 +132,11 @@ object PaymentRequestHandler {
   sealed trait Event
 
   final case class PaymentRequestReceived(
-      client: ActorRef[Response],
       orderId: OrderId,
       amount: Money,
       merchantId: MerchantId,
-      userId: UserId)
+      userId: UserId,
+      replyTo: ActorRef[Response])
       extends Event
 
   final case class PaymentRequestProcessed(transactionId: TransactionId) extends Event

@@ -61,11 +61,11 @@ object PaymentHandling {
           Behaviors.receiveMessage {
             case paymentRequest: HandlePayment =>
               shardRegion ! PaymentRequestHandler.HandlePaymentRequest(
-                paymentRequest.sender,
                 paymentRequest.orderId,
                 paymentRequest.amount,
                 paymentRequest.merchantId,
-                paymentRequest.userId)
+                paymentRequest.userId,
+                paymentRequest.sender)
               Behaviors.same
             case _ => Behaviors.unhandled
           }
