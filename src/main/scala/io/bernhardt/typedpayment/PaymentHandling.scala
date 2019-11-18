@@ -3,10 +3,11 @@ package io.bernhardt.typedpayment
 import akka.actor.typed.receptionist.Receptionist.Listing
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ ActorRef, Behavior }
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.sharding.typed.HashCodeNoEnvelopeMessageExtractor
-import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, Entity, EntityTypeKey }
-import io.bernhardt.typedpayment.Configuration.{ ConfigurationRequest, MerchantId, OrderId, UserId }
+import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityTypeKey}
+import akka.persistence.typed.PersistenceId
+import io.bernhardt.typedpayment.Configuration.{ConfigurationRequest, MerchantId, OrderId, UserId}
 import squants.market.Money
 
 /**
@@ -40,7 +41,7 @@ object PaymentHandling {
               val shardRegion: ActorRef[PaymentRequestHandler.Command] =
                 sharding.init(
                   Entity(PaymentRequestHandlerTypeKey) { context =>
-                    PaymentRequestHandler(OrderId(context.entityId), configuration, listing)
+                    PaymentRequestHandler(OrderId(context.entityId), PersistenceId(context.entityTypeKey.name, context.entityId), configuration, listing)
                   }.withMessageExtractor(messageExtractor)
                     // custom stop message to allow for graceful shutdown
                     // this is especially important for persistent actors, as the default is PoisonPill,

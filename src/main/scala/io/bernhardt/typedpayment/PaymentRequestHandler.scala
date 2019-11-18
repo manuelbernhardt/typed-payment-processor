@@ -2,10 +2,10 @@ package io.bernhardt.typedpayment
 
 import akka.actor.typed.receptionist.Receptionist.Listing
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ ActorRef, Behavior }
-import akka.persistence.typed.PersistenceId
-import akka.persistence.typed.scaladsl.{ Effect, EventSourcedBehavior }
-import io.bernhardt.typedpayment.Configuration.{ CreditCard, MerchantId, OrderId, TransactionId, UserId }
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import io.bernhardt.typedpayment.Configuration.{CreditCard, MerchantId, OrderId, TransactionId, UserId}
 import squants.market.Money
 
 /**
@@ -14,6 +14,7 @@ import squants.market.Money
 object PaymentRequestHandler {
   def apply(
       orderId: OrderId,
+      persistenceId: PersistenceId,
       configuration: ActorRef[Configuration.ConfigurationRequest],
       processors: Listing): Behavior[Command] = Behaviors.setup { context =>
     val configurationAdapter: ActorRef[Configuration.ConfigurationResponse] = context.messageAdapter { response =>
@@ -108,7 +109,16 @@ object PaymentRequestHandler {
       }
     }
 
-    EventSourcedBehavior[Command, Event, State](PersistenceId(orderId.id), Empty, commandHandler, eventHandler)
+    EventSourcedBehavior[Command, Event, State](
+      persistenceId = persistenceId,
+      emptyState = Empty,
+      commandHandler = commandHandler,
+      eventHandler = eventHandler
+    ).receiveSignal {
+      case (state: ProcessingPayment, RecoveryCompleted) =>
+        // request configuration again
+        configuration ! Configuration.RetrieveConfiguration(state.merchantId, state.userId, configurationAdapter)
+    }
   }
 
   // public protocol
