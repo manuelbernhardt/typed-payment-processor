@@ -19,12 +19,10 @@ import io.bernhardt.typedpayment.Processor.{ ProcessorRequest, RequestProcessed,
 import squants.market.Money
 
 object CreditCardProcessor {
-  def apply(): Behavior[ProcessorRequest] = Behaviors.setup { context =>
+  def apply(storage: ActorRef[CreditCardStorage.Command[_]]): Behavior[ProcessorRequest] = Behaviors.setup { context =>
     Behaviors.withStash(1000) { stash =>
       // register with the Receptionist which makes this actor discoverable
       context.system.receptionist ! Receptionist.Register(Key, context.self)
-
-      val storage = context.spawn(CreditCardStorage(), "storage")
 
       val storageAdapter: ActorRef[FindCreditCardResult] = context.messageAdapter { response =>
         AdaptedStorageResponse(response)

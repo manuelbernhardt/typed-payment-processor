@@ -1,6 +1,5 @@
 package io.bernhardt.typedpayment
 
-import akka.actor.typed.receptionist.Receptionist.Listing
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
@@ -13,10 +12,10 @@ import squants.market.Money
  */
 object PaymentRequestHandler {
   def apply(
-      orderId: OrderId,
-      persistenceId: PersistenceId,
-      configuration: ActorRef[Configuration.ConfigurationRequest],
-      processors: Listing): Behavior[Command] = Behaviors.setup { context =>
+             orderId: OrderId,
+             persistenceId: PersistenceId,
+             configuration: ActorRef[Configuration.ConfigurationRequest],
+             creditCardProcessorRouter: ActorRef[Processor.ProcessorRequest]): Behavior[Command] = Behaviors.setup { context =>
     val configurationAdapter: ActorRef[Configuration.ConfigurationResponse] = context.messageAdapter { response =>
       AdaptedConfigurationResponse(orderId, response)
     }
@@ -95,18 +94,10 @@ object PaymentRequestHandler {
     def processRequest(config: Configuration.ConfigurationFound, amount: Money): Effect[Event, State] = {
       config.userConfiguration.paymentMethod match {
         case cc: CreditCard =>
-          val references = processors.serviceInstances(CreditCardProcessor.Key)
-          if (references.nonEmpty) {
-            val reference = references.head
-
             Effect.none.thenRun { _ =>
-              reference ! Processor.Process(amount, config.merchantConfiguration, config.userId, cc, processingAdapter)
+              creditCardProcessorRouter ! Processor.Process(amount, config.merchantConfiguration, config.userId, cc, processingAdapter)
             }
-          } else {
-            context.log.error("No credit card processor available")
-            Effect.stop()
           }
-      }
     }
 
     EventSourcedBehavior[Command, Event, State](
