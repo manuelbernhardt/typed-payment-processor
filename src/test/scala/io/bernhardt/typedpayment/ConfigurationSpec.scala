@@ -11,9 +11,9 @@ import io.bernhardt.typedpayment.Configuration.{
   UserConfiguration,
   UserId
 }
-import org.scalatest.WordSpecLike
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class ConfigurationSpec extends ScalaTestWithActorTestKit with WordSpecLike {
+class ConfigurationSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike {
   "The Configuration actor" should {
     "not find a configuration for an unknown merchant" in {
       // define a probe which allows it to easily send messages

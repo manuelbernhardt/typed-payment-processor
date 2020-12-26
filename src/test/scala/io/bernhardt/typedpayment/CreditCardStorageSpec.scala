@@ -5,11 +5,12 @@ import java.io.File
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import io.bernhardt.typedpayment.Configuration.{ CreditCardId, UserId }
 import io.bernhardt.typedpayment.CreditCardStorage.CreditCardFound
-import org.scalatest.{ BeforeAndAfterAll, WordSpecLike }
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.reflect.io.Directory
 
-class CreditCardStorageSpec extends ScalaTestWithActorTestKit with WordSpecLike with BeforeAndAfterAll {
+class CreditCardStorageSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with BeforeAndAfterAll {
   "The Credit Card Storage" should {
     "Add cards" in {
       val probe = createTestProbe[CreditCardStorage.AddCreditCardResult]()

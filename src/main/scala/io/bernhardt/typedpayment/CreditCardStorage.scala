@@ -61,7 +61,7 @@ object CreditCardStorage {
 
   def apply(): Behavior[Command[_]] = Behaviors.setup { context =>
     EventSourcedBehavior.withEnforcedReplies[Command[_], Event, Storage](
-      persistenceId = PersistenceId("cc"),
+      persistenceId = PersistenceId.ofUniqueId("cc"),
       emptyState = Storage(),
       commandHandler = (state, cmd) => state.applyCommand(context, cmd),
       eventHandler = (state, evt) => state.applyEvent(evt))
