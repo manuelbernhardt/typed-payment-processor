@@ -2,9 +2,9 @@ name := "typed-payment-processor"
 
 version := "1.0"
 
-scalaVersion := "2.12.6"
+scalaVersion := "2.13.4"
 
-lazy val akkaVersion = "2.6.0-M8"
+lazy val akkaVersion = "2.6.10"
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor"                  % akkaVersion,
@@ -14,9 +14,9 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-serialization-jackson"  % akkaVersion,
   "org.fusesource.leveldbjni" % "leveldbjni-all"       % "1.8",
   "ch.qos.logback"     % "logback-classic"             % "1.2.3",
-  "org.typelevel"     %% "squants"                     % "1.4.0",
+  "org.typelevel"     %% "squants"                     % "1.7.0",
   "com.typesafe.akka" %% "akka-actor-testkit-typed"    % akkaVersion  % "test",
-  "org.scalatest"     %% "scalatest"                   % "3.0.5"      % "test"
+  "org.scalatest"     %% "scalatest"                   % "3.2.3"      % "test"
 )
 
 fork in Test := true 
